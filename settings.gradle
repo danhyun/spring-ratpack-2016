@@ -1,0 +1,13 @@
+include \
+  'spring-config',
+  'ratpack-centric',
+  'spring-boot-centric'
+
+rootProject.name = 'spring-ratpack'
+
+def setBuildFile(project) {
+  project.buildFileName = "${project.name}.gradle"
+  project.children.each(this.&setBuildFile)
+}
+
+setBuildFile(rootProject)

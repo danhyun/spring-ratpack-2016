@@ -1,0 +1,19 @@
+buildscript {
+  ext {
+    springBootVersion = '1.3.3.RELEASE'
+  }
+  repositories {
+    mavenCentral()
+  }
+  dependencies {
+    classpath("org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}")
+  }
+}
+
+apply plugin: 'spring-boot'
+
+dependencies {
+  compile project(':spring-config')
+  compile('io.ratpack:ratpack-spring-boot:1.2.0')
+  compile('org.springframework.boot:spring-boot-starter-web')
+}

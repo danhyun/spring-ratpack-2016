@@ -1,0 +1,732 @@
+= Spring Boot and Ratpack
+Dan Hyun <hyun.danny@gmail.com>
+
+With the advent of Ratpack and Spring Boot, many believe that you can only choose one.
+That couldn't be further from the truth.
+The only area where they potentially overlap is in serving web requests.
+The Spring Framework is a very rich ecosystem including but not limited to DI, web mvc, data, security, etc.  
+Ratpack focuses on rapid web app prototyping and iteration - balancing low resource utilization, high performance and developer friendliness.
+We'll explore the ways in which Ratpack and Spring Boot work in harmony.
+
+
+== http://projects.spring.io/spring-boot/[Spring Boot]
+
+=== Background
+
+* Builds on 10+ Years of experience around Servlet based Web MVC applications
+** `spring:spring-webmvc:1.0.2` published 2005
+* Single self-contained artifact -- standalone jar/war or war that can deploy to Servlet Container
+* `@Configuration` encouraged although you can certainly define beans in XML
+
+.But why would you use XML over `@Configuration`
+image::why-would-you-do-that.jpg[]
+
+* Annotation-based framework integrations
+** spring-cloud projects
+*** `@EnableDiscoveryClient`
+*** `@RibbonClient`
+
+=== Value
+
+* Immediate impact for newcomers
+* Industry standard
+* Let's user focus on writing business logic
+
+
+=== Hello World
+
+[source,gradle]
+.build.gradle
+----
+buildscript {
+  ext {
+    springBootVersion = '1.3.3.RELEASE'
+  }
+  repositories {
+    mavenCentral()
+  }
+  dependencies {
+    classpath("org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}")
+  }
+}
+
+apply plugin: 'idea'
+apply plugin: 'eclipse'
+apply plugin: 'spring-boot'
+
+repositories {
+  jcenter()
+  mavenCentral()
+}
+
+dependencies {
+  compile('org.springframework.boot:spring-boot-starter-web')
+}
+----
+
+[source,java,linenums]
+.SpringBootApp.java
+----
+package demo; // <1>
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
+
+@SpringBootApplication // <2>
+@Controller // <3>
+public class SpringBootApp {
+
+  @RequestMapping("/")
+  @ResponseBody String home() {
+    return "Hello, World!";
+  }
+
+  public static void main(String[] args) {
+    SpringApplication.run(SpringBootApp.class, args);
+  }
+}
+----
+<1> Doesn't work if class is in default package
+<2> Activate Spring Boot web app
+<3> Spring MVC Controller Stereotype
+
+[source,bash]
+----
+$ ./gradlew bootRun
+
+$ curl -v localhost:8080/
+* timeout on name lookup is not supported
+*   Trying ::1...
+* Connected to localhost (::1) port 8080 (#0)
+> GET / HTTP/1.1
+> Host: localhost:8080
+> User-Agent: curl/7.45.0
+> Accept: */*
+>
+< HTTP/1.1 200 OK
+< Server: Apache-Coyote/1.1
+< Content-Type: text/plain;charset=UTF-8
+< Content-Length: 13
+< Date: Thu, 31 Mar 2016 03:27:03 GMT
+<
+Hello, World!* Connection #0 to host localhost left intact
+----
+
+Very compelling demo:
+
+* No application-context.xml
+* No web.xml
+* No Tomcat configuration
+
+== https://ratpack.io/[Ratpack]
+
+=== Background
+
+* Java 8+
+* Builds on battle proven async/NIO networking framework -- Netty
+* Lightly opinionated (async/lazy/functional/immutable/composable/reactive)
+* Lightweight && Low resource overhead -> _fast_
+* Collection of jars -- no framework SDK / no codegen
+* Not MVC
+** no controllers
+** no table routing
+* Currently at 1.2.0 (Stable API)
+
+=== Value
+
+* WYSIWYG -- no "magic" (no classpath scanning, no reflection)
+* Start writing business logic immediately
+* Designed for developer friendliness/productivity
+* First class testing support
+* Great for rapid prototyping and evolving to larger code base
+* Reduce that monthly AWS bill $ $ $
+
+
+=== Hello World Groovy
+[source,groovy]
+.hello.groovy
+----
+@Grab('io.ratpack:ratpack-groovy:1.2.0')
+import static ratpack.groovy.Groovy.ratpack
+
+ratpack {
+  handlers { // <1>
+    get { // <2>
+      render 'Hello, Groovy!'
+    }
+  }
+}
+----
+<1> Define request handling aspect of your application
+<2> Register a handler for `GET /` sends plain text response
+
+
+[source,bash]
+----
+$ groovy hello.groovy
+$ curl -v localhost:5050/
+* timeout on name lookup is not supported
+*   Trying ::1...
+* Connected to localhost (::1) port 5050 (#0)
+> GET / HTTP/1.1
+> Host: localhost:5050
+> User-Agent: curl/7.45.0
+> Accept: */*
+>
+< HTTP/1.1 200 OK
+< content-type: text/plain;charset=UTF-8
+< content-length: 14
+< connection: keep-alive
+<
+Hello, Groovy!* Connection #0 to host localhost left intact
+----
+
+Handles "live reloads"
+
+=== Hello World Java
+
+[source, java]
+.build.gradle
+----
+plugins {
+  id 'io.ratpack.ratpack-java' version '1.2.0'
+  id 'com.github.johnrengelman.shadow' version '1.2.3'
+}
+
+mainClassName = 'RatpackApp'
+
+repositories {
+  jcenter()
+}
+----
+
+[source,java,linenums]
+.RatpackApp.java
+----
+import ratpack.server.RatpackServer;
+
+public class RatpackApp {
+  public static void main(String[] args) throws Exception {
+    RatpackServer.start(serverSpec -> serverSpec // <1>
+      .handlers(chain -> chain // <2>
+        .get(ctx -> ctx.getResponse().send("Hello, World!")) // <3>
+      )
+    );
+  }
+}
+----
+<1> Supply specification on how to build the Ratpack application
+<2> Supply description of Ratpack application
+<3> Add handler for `GET /` endpoint
+
+[source,bash]
+----
+./gradlew run -t //<1>
+----
+<1> Compile and run application in continuous mode (recompiles app as source changes)
+
+[source,bash]
+----
+$ curl -v localhost:5050
+* Rebuilt URL to: localhost:5050/
+* timeout on name lookup is not supported
+*   Trying ::1...
+* Connected to localhost (::1) port 5050 (#0)
+> GET / HTTP/1.1
+> Host: localhost:5050
+> User-Agent: curl/7.45.0
+> Accept: */*
+>
+< HTTP/1.1 200 OK
+< content-type: text/plain;charset=UTF-8
+< content-length: 13
+< connection: keep-alive
+<
+Hello, World!* Connection #0 to host localhost left intact
+----
+
+== Meet the API
+
+=== https://ratpack.io/manual/current/api/ratpack/handling/Handler.html[The Handler]
+
+* SAM type
+* Primary means of request processing
+
+[source, java]
+----
+public interface Handler {
+  void handle(Context context);
+}
+----
+
+=== https://ratpack.io/manual/current/api/ratpack/handling/Context.html[The Context]
+
+* Primary means of reading request and response object
+* Primary means of inter Handler communciation
+* Registry of application level and request level objects
+* Provides easy access to features of Ratpack
+** Parsing
+** Rendering
+** HTTP objects
+** Execution
+
+
+=== https://ratpack.io/manual/current/api/ratpack/registry/Registry.html[The Registry]
+
+A registry of objects of which Ratpack is aware; primarily used to communicate between `Handler` s.
+
+[source,java]
+.RatpackRegistryApp.java
+----
+import ratpack.registry.Registry;
+import ratpack.server.RatpackServer;
+
+public class RatpackRegistryApp {
+  public static void main(String[] args) throws Exception {
+    RatpackServer.start(serverSpec -> serverSpec
+      .registry(Registry.of(registrySpec -> registrySpec // <1>
+        .add(MessageService.class, () -> "My message service") // <2>
+      ))
+      .handlers(chain -> chain
+        .get(ctx -> {
+          MessageService messageService = ctx.get(MessageService.class); // <3>
+          ctx.render(messageService.send());
+        })
+      )
+    );
+  }
+  interface MessageService {
+    String send();
+  }
+}
+----
+<1> Use Registry builder to build and add Registry to Ratpack server definition
+<2> Add an instance of `MessageService` to the Registry
+<3> Retrieve `MessageService` instance from Context Registry
+
+[source,bash]
+----
+$ curl -v localhost:5050/
+* timeout on name lookup is not supported
+*   Trying ::1...
+* Connected to localhost (::1) port 5050 (#0)
+> GET / HTTP/1.1
+> Host: localhost:5050
+> User-Agent: curl/7.45.0
+> Accept: */*
+>
+< HTTP/1.1 200 OK
+< content-type: text/plain;charset=UTF-8
+< content-length: 18
+< connection: keep-alive
+<
+My message service* Connection #0 to host localhost left intact
+----
+
+Communicating between handlers
+
+[source,java]
+.RatpackRegistryApp.java
+----
+import ratpack.registry.Registry;
+import ratpack.server.RatpackServer;
+
+import java.time.Instant;
+
+public class RatpackRegistryApp {
+  public static void main(String[] args) throws Exception {
+    RatpackServer.start(serverSpec -> serverSpec
+      .registry(Registry.of(registrySpec -> registrySpec
+        .add(MessageService.class, () -> "My message service")
+      ))
+      .handlers(chain -> chain
+        .all(ctx -> // <1>
+          ctx.next(Registry.single(Instant.now())) // <2>
+        )
+        .get(ctx -> {
+          Instant requestStart = ctx.get(Instant.class); // <3>
+          MessageService messageService = ctx.get(MessageService.class);
+          ctx.render(requestStart + " " + messageService.send());
+        })
+      )
+    );
+  }
+  interface MessageService {
+    String send();
+  }
+}
+----
+<1> Add handler that applies to every incoming request
+<2> Use `Registry#single` factory to create Registry of single item and pass to next qualifying handler
+<3> Retrieve `Instant` from created from upstream handler
+
+
+[source, bash]
+----
+$ curl -v localhost:5050
+* Rebuilt URL to: localhost:5050/
+* timeout on name lookup is not supported
+*   Trying ::1...
+* Connected to localhost (::1) port 5050 (#0)
+> GET / HTTP/1.1
+> Host: localhost:5050
+> User-Agent: curl/7.45.0
+> Accept: */*
+>
+< HTTP/1.1 200 OK
+< content-type: text/plain;charset=UTF-8
+< content-length: 43
+< connection: keep-alive
+<
+2016-03-31T06:16:45.632Z My message service* Connection #0 to host localhost left intact
+----
+
+=== Integrating existing blocking libraries
+
+[source, java]
+.RatpackBlockingIntegrationApp.java
+----
+import ratpack.exec.Blocking;
+import ratpack.exec.Promise;
+import ratpack.registry.Registry;
+import ratpack.server.RatpackServer;
+
+public class RatpackBlockingIntegrationApp {
+  public static void main(String[] args) throws Exception {
+    RatpackServer.start(serverSpec -> serverSpec
+      .registry(Registry.of(registrySpec -> registrySpec
+        .add(BlockingMessageService.class, () -> {
+          try {
+            Thread.sleep(1000); // <1>
+          } catch (Exception e) {
+            // uh oh
+          }
+          return "My blocking message service";
+        })
+      ))
+      .handlers(chain -> chain
+        .get(ctx -> {
+          BlockingMessageService messageService = ctx.get(BlockingMessageService.class);
+          Promise<String> promise = Blocking.get(messageService::send); <2>
+          promise.then(ctx::render); <3>
+        })
+      )
+    );
+  }
+  interface BlockingMessageService {
+    String send();
+  }
+}
+----
+<1> Simulate blocking behavior
+<2> Use https://ratpack.io/manual/current/api/ratpack/exec/Blocking.html#get-ratpack.func.Factory-[`Blocking#get(Factory)`] method to hook into Ratpack's blocking executor
+<3> When promise is resolved send response to client
+
+[source,bash]
+----
+$ curl -v localhost:5050
+* Rebuilt URL to: localhost:5050/
+* timeout on name lookup is not supported
+*   Trying ::1...
+* Connected to localhost (::1) port 5050 (#0)
+> GET / HTTP/1.1
+> Host: localhost:5050
+> User-Agent: curl/7.45.0
+> Accept: */*
+>
+< HTTP/1.1 200 OK
+< content-type: text/plain;charset=UTF-8
+< content-length: 18
+< connection: keep-alive
+<
+My blocking message service* Connection #0 to host localhost left intact
+----
+
+== Spring and Ratpack Integration
+
+Huge thanks to http://github.com/dsyer[@dsyer (Dave Syer)]
+
+=== Ratpack Centric approach
+[source,gradle]
+.build.gradle
+----
+plugins {
+  id 'io.ratpack.ratpack-java' version '1.2.0'
+  id 'com.github.johnrengelman.shadow' version '1.2.3' // <1>
+}
+
+mainClassName = 'RatpackApp' // <2>
+
+repositories {
+  jcenter()
+}
+
+dependencies {
+  compile ratpack.dependency('spring-boot') // <3>
+}
+----
+<1> Shadow plugin to create fatjar
+<2> Specify main class
+<3> Add `io.ratpack:ratpack-spring-boot:1.2.0` to compile time dependencies
+
+[source,java]
+.RatpackApp.java
+----
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import ratpack.server.RatpackServer;
+import ratpack.spring.Spring;
+
+public class RatpackApp {
+  public static void main(String[] args) throws Exception {
+    RatpackServer.start(serverSpec -> serverSpec
+      .registry(Spring.spring(MySpringConfig.class)) // <1>
+      .handlers(chain -> chain
+        .get(ctx -> {
+          String hello = ctx.get(String.class); // <2>
+          ctx.getResponse().send(hello);
+        })
+      )
+    );
+  }
+
+  @Configuration
+  public static class MySpringConfig {
+    @Bean
+    public String hello() {
+      return "Hello from Spring!";
+    }
+  }
+}
+----
+<1> Add base Spring config class to Ratpack's registry
+<2> Retrieves register Spring bean from Ratpack's registry
+
+Issuing a get request after starting the Ratpack application.
+[source]
+----
+$ curl -v localhost:5050/
+* timeout on name lookup is not supported
+*   Trying ::1...
+* Connected to localhost (::1) port 5050 (#0)
+> GET / HTTP/1.1
+> Host: localhost:5050
+> User-Agent: curl/7.45.0
+> Accept: */*
+>
+< HTTP/1.1 200 OK
+< content-type: text/plain;charset=UTF-8
+< content-length: 18
+< connection: keep-alive
+<
+Hello from Spring!* Connection #0 to host localhost left intact
+----
+
+=== Spring Boot Centric approach
+
+http://start.spring.io/[Spring Boot Initializr: Bootstrap Spring Boot]
+
+[source, bash]
+----
+$ curl -o demo.zip "http://start.spring.io/starter.zip?type=gradle-project&bootVersion=1.3.3.RELEASE &baseDir=demo&groupId=com.example&artifactId=demo&name=demo&description=Demo+project+for+Spring+Boot &packageName=com.example&packaging=jar&javaVersion=1.8&language=java&autocomplete=&generate-project= &style=ratpack"
+
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100 54752  100 54752    0     0   122k      0 --:--:-- --:--:-- --:--:--  126k
+
+$ unzip -l demo.zip
+Archive:  demo.zip
+  Length      Date    Time    Name
+---------  ---------- -----   ----
+        0  2016-03-31 02:41   demo/
+     4957  2016-03-31 02:41   demo/gradlew
+        0  2016-03-31 02:41   demo/gradle/
+        0  2016-03-31 02:41   demo/gradle/wrapper/
+        0  2016-03-31 02:41   demo/src/
+        0  2016-03-31 02:41   demo/src/main/
+        0  2016-03-31 02:41   demo/src/main/java/
+        0  2016-03-31 02:41   demo/src/main/java/com/
+        0  2016-03-31 02:41   demo/src/main/java/com/example/
+        0  2016-03-31 02:41   demo/src/main/resources/
+        0  2016-03-31 02:41   demo/src/test/
+        0  2016-03-31 02:41   demo/src/test/java/
+        0  2016-03-31 02:41   demo/src/test/java/com/
+        0  2016-03-31 02:41   demo/src/test/java/com/example/
+      891  2016-03-31 02:41   demo/build.gradle
+    53638  2016-03-31 02:41   demo/gradle/wrapper/gradle-wrapper.jar
+      200  2016-03-31 02:41   demo/gradle/wrapper/gradle-wrapper.properties
+     2314  2016-03-31 02:41   demo/gradlew.bat
+      299  2016-03-31 02:41   demo/src/main/java/com/example/DemoApplication.java
+        0  2016-03-31 02:41   demo/src/main/resources/application.properties
+      405  2016-03-31 02:41   demo/src/test/java/com/example/DemoApplicationTests.java
+---------                     -------
+    62704                     21 files
+----
+
+[source, gradle]
+.build.gradle
+----
+buildscript {
+  ext {
+    springBootVersion = '1.3.3.RELEASE'
+  }
+  repositories {
+    mavenCentral()
+  }
+  dependencies {
+    classpath("org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}")
+  }
+}
+
+apply plugin: 'spring-boot'
+
+repositories {
+  jcenter()
+  mavenCentral()
+}
+
+dependencies {
+  compile project(':spring-config')
+  compile('io.ratpack:ratpack-spring-boot:1.2.0')
+  compile('org.springframework.boot:spring-boot-starter-web')
+}
+
+----
+
+[source, java]
+.SpringBootCentricHelloWorld.java
+----
+package demo2;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+import ratpack.func.Action;
+import ratpack.handling.Chain;
+import ratpack.spring.config.EnableRatpack;
+
+@SpringBootApplication
+@EnableRatpack // <1>
+public class SpringBootCentricHelloWorld {
+
+  @Bean
+  Action<Chain> chain() { // <2>
+    return chain -> chain
+      .get(ctx -> ctx.render("Hello from Spring Boot!"));
+  }
+
+  public static void main(String[] args) {
+    SpringApplication.run(SpringBootCentricHelloWorld.class, args);
+  }
+}
+----
+<1> Configures Spring Boot to be Ratpack-aware
+<2> Provides the `Action<Chain>` as a Component, Spring takes care of building and starting Ratpack server
+
+[NOTE]
+Spring Boot (Spring MVC) and Ratpack will run side by side, binding to both 8080 (Tomcat default) and 5050 (Ratpack default). If you wish to disable Spring MVC autoconfig there are http://docs.spring.io/spring-boot/docs/current/reference/htmlsingle/#howto-create-a-non-web-application[many ways to do so].
+
+=== Defining controller and Ratpack handler chain side by side
+
+[source, java]
+.SpringBootRatpackCommunicationApp.java
+----
+package demo3;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.client.RestTemplate;
+import ratpack.func.Action;
+import ratpack.handling.Chain;
+import ratpack.http.client.HttpClient;
+import ratpack.http.client.ReceivedResponse;
+import ratpack.jackson.Jackson;
+import ratpack.spring.config.EnableRatpack;
+
+import java.net.URI;
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
+
+@SpringBootApplication
+@EnableRatpack
+@Controller
+public class SpringBootRatpackCommunicationApp {
+
+  @Bean
+  Action<Chain> chain() {
+    return chain -> chain
+      .get(ctx -> ctx.render("Hello from Ratpack in Spring Boot!"))
+      .get("json", ctx -> { // <1>
+        Map<String, String> map = new HashMap<>();
+        map.put("date", Instant.now().toString());
+        ctx.render(Jackson.json(map)); // <2>
+      })
+      .get("boot", ctx -> { // <3>
+        HttpClient client = ctx.get(HttpClient.class); // <4>
+        client.get(new URI("http://localhost:8080"))
+          .map(ReceivedResponse::getBody)
+          .map(body -> "Received from Spring Boot: " + body.getText())
+          .then(ctx::render); // <5>
+      });
+  }
+
+  @RequestMapping("/")
+  @ResponseBody String bootRoot() {
+    return "This is Spring Boot";
+  }
+
+  @RequestMapping("/ratpack")
+  @ResponseBody Map bootRatpack() { // <6>
+    RestTemplate restTemplate = new RestTemplate();
+    return restTemplate.getForObject("http://localhost:5050/json", Map.class);
+  }
+
+  public static void main(String[] args) {
+    SpringApplication.run(SpringBootRatpackCommunicationApp.class, args);
+  }
+}
+----
+<1> Create `GET /json` endpoint in Ratpack chain that returns simple JSON object containing time of request
+<2> Utilize `Jackson.json(Object)` to create a renderable that knows how to send JSON to client.
+<3> Create `GET /boot` endpoint in Ratpack chain that sends a response based on response from Spring Boot app
+<4> Retrieve non-blocking/async `HttpClient` from Ratpack registry
+<5> Create `GET /` request against Spring Boot app, extract the response body and send to the user
+<6> Create `GET /ratpack` endpoing in Spring Boot app that issues a REST call against the previously defined `/json` endpoint in he Ratpack app and render the result to the user
+
+
+[source, bash]
+----
+$ curl localhost:8080
+This is Spring Boot
+
+$ curl localhost:5050
+Hello from Ratpack in Spring Boot!
+
+$ curl localhost:5050/boot
+Received from Spring Boot: This is Spring Boot
+
+$ curl localhost:8080/ratpack
+{"date":"2016-03-31T07:11:14.178Z"}
+----
+
+`compile 'io.ratpack:ratpack-spring-boot-starter:1.2.0'`
+
+
+== Resources
+
+* http://start.spring.io/[Spring Initializr]
+* https://ratpack.io/[Ratpack Homepage]
+* https://github.com/ratpack/ratpack[Ratpack source code]
+* https://github.com/ratpack[Ratpack examples]
+* https://ratpack.io/manual/current/all.html[Ratpack user guide]
+* https://slack-signup.ratpack.io/[Ratpack Slack Registration]
+* https://forum.ratpack.io/[Ratpack Forum]
+* http://shop.oreilly.com/product/0636920037545.do[Book: Learning Ratpack (O'Reilly)]
